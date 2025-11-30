@@ -26,6 +26,8 @@ OUTPUT_FILE = 'index.html'
 
 plt.style.use('ggplot')
 
+TITLE_REGEX = re.compile(r'\s*(?:(Rep|Dr|Msgr|Prof|Ret|JD|VM|Sr|Jr|I|II|III|IV)\.?\s*)*\s*', re.IGNORECASE)
+
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -102,6 +104,20 @@ HTML_TEMPLATE = """
 </body>
 </html>
 """
+
+TITLE_REGEX = re.compile(r'\s*(?:(Rep|Dr|Msgr|Prof|Ret|JD|VM|Sr|Jr|I|II|III|IV|V)\.?\s*)*\s*', re.IGNORECASE)
+
+
+def get_author_frozenset(author_str: str) -> Optional[frozenset]:
+    if pd.isna(author_str) or not author_str.strip():
+        return None
+    author_names = [name.strip() for name in author_str.split(',')]
+    cleaned_names = []
+    for name in author_names:
+        name = TITLE_REGEX.sub('', name.strip()).strip()
+        if name:
+            cleaned_names.append(name.lower())
+    return frozenset(cleaned_names)
 
 
 def clean_price(value: Any) -> float:
@@ -200,9 +216,8 @@ def process_dataset(folder_path: Path) -> Optional[Dict]:
     pop_author = "Unknown"
     uniq_authors = 0
     if 'author' in books.columns:
-        books['author_clean'] = books['author'].astype(str).str.strip()
-        uniq_authors = books['author_clean'].nunique()
-
+        books['author_set'] = books['author'].astype(str).apply(get_author_frozenset)
+        uniq_authors = books['author_set'].dropna().nunique()
         if not merged.empty:
             merged['author_clean'] = merged['author'].astype(str).str.strip()
             top_authors = merged[merged['author_clean'] != 'nan'].groupby('author_clean')[cols['qty']].sum()
@@ -221,7 +236,7 @@ def process_dataset(folder_path: Path) -> Optional[Dict]:
         'uniq_u': uniq_users_count,
         'uniq_a': uniq_authors,
         'pop_a': pop_author,
-        'best_ids_str': best_buyer_str,  # Отправляем готовую строку
+        'best_ids_str': best_buyer_str,
         'chart': chart_b64
     }
 
